@@ -20,12 +20,20 @@ if (isset($_GET['reset'])) {
     exit;
 }
 
+if (!isset($_GET['user'])) {
+    print "No user param!";
+    exit;
+}
+$user = $_GET['user'];
+
 // In state=1 the next request should include an oauth_token.
 // If it doesn't go back to 0
 if(!isset($_GET['oauth_token']) && $_SESSION['state']==1) {
     $_SESSION['state'] = 0;
 }
 
+require_once('datafetcher.class.php');
+$fetcher = new DataFetcher();
 
 try {
 
@@ -57,9 +65,7 @@ try {
 
     $n = 0;
     $fetchTimestamp = null;
-    $lastTimestamp = time()*1000;
-
-    $addressCache = array();
+    $lastTimestamp = time() * 1000;
 
     while ($fetchTimestamp != $lastTimestamp) {
         $fetchTimestamp = $lastTimestamp;
@@ -75,39 +81,22 @@ try {
 
             if ($lastTimestamp && $lastLat != $location->latitude && $lastLong != $location->longitude) {
 
-                $recenttracks = simplexml_load_string(implode('',file("http://wsdev.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=jonocole&api_key=b25b959554ed76058ac220b7b2e0a026&from=".($location->timestampMs/1000)."&to=".($lastTimestamp/1000))));
-                $recenttracks = (array) $recenttracks->recenttracks;
-
-                $scrobbles = null;
-                if (isset($recenttracks['track']) && $recenttracks['track']) {
-                    if (is_array($recenttracks['track'])) {
-                        $scrobbles = $recenttracks['track'];
-                    } else {
-                        $scrobbles = array($recenttracks['track']);
-                    }
-                }
+                $scrobbles = $fetcher->fetchScrobbles($user, $location->timestampMs, $lastTimestamp, $location->latitude, $location->longitude);
 
                 if ($scrobbles) {
 
                     $latlon = $location->latitude.','.$location->longitude;
-                    $address = $latlon;
+                    $address = $fetcher->fetchAddress($latlon);
 
-                    if (isset($addressCache[$latlon])) {
-                        $address = $addressCache[$latlon];
-                    } else {
-                        $geocode = simplexml_load_string(implode('',file("http://maps.googleapis.com/maps/api/geocode/xml?latlng={$latlon}&sensor=false")));
-                        foreach ($geocode->result as $item) {
-                            if ($item->type == 'postal_code') {
-                                $addressCache[$latlon] = $address = $item->formatted_address;
-                            }
-                        }
-                    }
+                    print date('r',$location->timestampMs/1000)." to ".date('r',$lastTimestamp/1000).": <b>{$address}\n</b><br>";
 
-                    print $n++.". ".date('r',$location->timestampMs/1000)." to ".date('r',$lastTimestamp/1000).": <b>{$address}\n</b><br>";
-
+                    print "<ul>";
                     foreach ($scrobbles as $scrobble) {
-                        print "\t".$scrobble->artist." - ".$scrobble->name."\n<br>";
+                        print "<li>".$scrobble['artist']." - ".$scrobble['track']."\n</li>\n";
                     }
+
+                    print "</ul><br>";
+                    flush();ob_flush();
                 }
             }
 
