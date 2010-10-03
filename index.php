@@ -21,7 +21,12 @@ if (isset($_GET['reset'])) {
 }
 
 if (!isset($_GET['user'])) {
-    print "No user param!";
+    ?>
+    <h1>Listening Locations</h1>
+    <b>Last.fm username:</b>
+    <form><input type="text" name="user"><input type="submit" value="To google, and beyond!"></form>
+    <small>You need to have a google latitude listening history for this to work. <a href="http://wiki.musichackday.org/index.php?title=ListeningLocations">Find out more.</small>
+    <?php
     exit;
 }
 $user = $_GET['user'];
