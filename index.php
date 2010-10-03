@@ -57,38 +57,66 @@ try {
 
     $n = 0;
     $fetchTimestamp = null;
-    $lastTimestamp = 1285853948000;//time()*1000;
+    $lastTimestamp = time()*1000;
+
+    $addressCache = array();
 
     while ($fetchTimestamp != $lastTimestamp) {
         $fetchTimestamp = $lastTimestamp;
 
-        $oauth->fetch("{$api_url}/location?max-results=1000&max-time={$fetchTimestamp}");
+        $oauth->fetch("{$api_url}/location?max-results=1000&max-time={$fetchTimestamp}&granularity=best");
         $json = json_decode($oauth->getLastResponse());
 
         $lastTimestamp = null;
         $lastLat = null;
         $lastLong = null;
-        $lastScrobbleTime = time();
 
         foreach ($json->data->items as $location) {
-            if ($location->timestampMs > ($lastScrobbleTime*1000)) {
-                continue;
+
+            if ($lastTimestamp && $lastLat != $location->latitude && $lastLong != $location->longitude) {
+
+                $recenttracks = simplexml_load_string(implode('',file("http://wsdev.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=jonocole&api_key=b25b959554ed76058ac220b7b2e0a026&from=".($location->timestampMs/1000)."&to=".($lastTimestamp/1000))));
+                $recenttracks = (array) $recenttracks->recenttracks;
+
+                $scrobbles = null;
+                if (isset($recenttracks['track']) && $recenttracks['track']) {
+                    if (is_array($recenttracks['track'])) {
+                        $scrobbles = $recenttracks['track'];
+                    } else {
+                        $scrobbles = array($recenttracks['track']);
+                    }
+                }
+
+                if ($scrobbles) {
+
+                    $latlon = $location->latitude.','.$location->longitude;
+                    $address = $latlon;
+
+                    if (isset($addressCache[$latlon])) {
+                        $address = $addressCache[$latlon];
+                    } else {
+                        $geocode = simplexml_load_string(implode('',file("http://maps.googleapis.com/maps/api/geocode/xml?latlng={$latlon}&sensor=false")));
+                        foreach ($geocode->result as $item) {
+                            if ($item->type == 'postal_code') {
+                                $addressCache[$latlon] = $address = $item->formatted_address;
+                            }
+                        }
+                    }
+
+                    print $n++.". ".date('r',$location->timestampMs/1000)." to ".date('r',$lastTimestamp/1000).": <b>{$address}\n</b><br>";
+
+                    foreach ($scrobbles as $scrobble) {
+                        print "\t".$scrobble->artist." - ".$scrobble->name."\n<br>";
+                    }
+                }
             }
 
-            $lastTimestamp = $location->timestampMs;
-
-            $lastLat = $location->latitude;
-            $lastLong = $location->longitude;
-
-            print $n++.". ".date('r',$location->timestampMs/1000).": {$location->latitude}, {$location->longitude}\n<br>";
-
-            $scrobbles = simplexml_load_string(implode('',file("http://wsdev.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=jonocole&api_key=b25b959554ed76058ac220b7b2e0a026&from=".(($location->timestampMs/1000)-7600)."&to=".(($location->timestampMs/1000)+7600))));
-
-            foreach ($scrobbles->recenttracks as $scrobble) {
-                print "\t".$scrobble->track->artist." - ".$scrobble->track->name."\n<br>";
-                $lastScrobbleTime = $scrobble->date->uts;
+            // Collapse times in the same place
+            if (!$lastTimestamp || ($lastLat != $location->latitude && $lastLong != $location->longitude)) {
+                $lastLat = $location->latitude;
+                $lastLong = $location->longitude;
+                $lastTimestamp = $location->timestampMs;
             }
-                
         }
     }
 
