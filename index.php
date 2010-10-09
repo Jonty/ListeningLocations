@@ -1,15 +1,7 @@
 <?php
 
-$conskey = 'jonty.co.uk';
-$conssec = 'DIRpj0xSbe/vOjgU/CBUAYq5';
-
-$req_url = 'https://www.google.com/accounts/OAuthGetRequestToken?scope='.
-            urlencode('https://www.googleapis.com/auth/latitude').
-            '&oauth_callback=http://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
-
-$authurl = 'https://www.google.com/latitude/apps/OAuthAuthorizeToken';
-$acc_url = 'https://www.google.com/accounts/OAuthGetAccessToken';
-$api_url = 'https://www.googleapis.com/latitude/v1';
+require_once('lib/datafetcher.class.php');
+require_once('lib/oauthfetcher.class.php');
 
 session_start();
 
@@ -39,99 +31,84 @@ if (!isset($_GET['user'])) {
     exit;
 }
 
-
-// In state=1 the next request should include an oauth_token.
-// If it doesn't go back to 0
-if(!isset($_GET['oauth_token']) && $_SESSION['state']==1) {
-    $_SESSION['state'] = 0;
-}
-
-require_once('lib/datafetcher.class.php');
 $fetcher = new DataFetcher();
+$oauth = new OAuthFetcher(); // This will do the OAuth bounce handshake dance.
 
-try {
+$fetchTimestamp = null;
+$lastTimestamp = time() * 1000;
 
-    $oauth = new OAuth($conskey, $conssec, OAUTH_SIG_METHOD_HMACSHA1, OAUTH_AUTH_TYPE_URI);
-    $oauth->enableDebug();
+while ($fetchTimestamp != $lastTimestamp) {
+    $fetchTimestamp = $lastTimestamp;
 
-    if ($_SESSION['state'] != 2) {
+    try {
 
-        if(!isset($_GET['oauth_token']) && !$_SESSION['state']) {
+        $queryString = http_build_query(array(
+            'max-results'   => 1000,
+            'max-time'      => $fetchTimestamp,
+            'granularity'   => 'best',
+        ));
 
-            $request_token_info = $oauth->getRequestToken($req_url);
-            $_SESSION['secret'] = $request_token_info['oauth_token_secret'];
-            $_SESSION['state'] = 1;
-            
-            header(
-                "Location: {$authurl}?oauth_token={$request_token_info['oauth_token']}&domain=".
-                urlencode($_SERVER['HTTP_HOST']).'&location=all&granularity=best'
+        $apiUrl = 'https://www.googleapis.com/latitude/v1';
+        $oauth->fetch("{$apiUrl}/location?{$queryString}");
+
+    } catch(OAuthException $e) {
+        trigger_error("OAuth fail: " . print_r($e, true));
+
+        ?>
+        Something failed during the OAuth data fetch from google! 
+        Are you sure you have <a href='https://www.google.com/latitude/history'>Google Latitude location history</a> enabled?
+        <?php
+        exit;
+    }
+
+    $lastTimestamp = $lastLat = $lastLong = $foundScrobbles = null;
+    $json = json_decode($oauth->getLastResponse());
+
+    if (!$json->data->items) {
+        print "You don't seem to have a latitude location history yet! Come back when you're older.";
+        exit;
+    }
+
+    foreach ($json->data->items as $location) {
+
+        if ($lastTimestamp && $lastLat != $location->latitude && $lastLong != $location->longitude) {
+
+            $scrobbles = $fetcher->fetchScrobbles(
+                $_GET['user'],
+                $location->timestampMs,
+                $lastTimestamp, 
+                $location->latitude,
+                $location->longitude
             );
-            
-            exit;
 
-        } else if($_SESSION['state']==1) {
+            if ($scrobbles) {
+                $address = $fetcher->fetchAddress("{$location->latitude},{$location->longitude}");
 
-            $oauth->setToken($_GET['oauth_token'], $_SESSION['secret']);
-            $access_token_info = $oauth->getAccessToken($acc_url);
-            
-            $_SESSION['state'] = 2;
-            $_SESSION['token'] = $access_token_info['oauth_token'];
-            $_SESSION['secret'] = $access_token_info['oauth_token_secret'];
-        }
+                print date('r',$location->timestampMs/1000)." to ".date('r',$lastTimestamp/1000).": <b>{$address}\n</b><br>";
 
-    }
-
-    $oauth->setToken($_SESSION['token'], $_SESSION['secret']);
-
-    $fetchTimestamp = null;
-    $lastTimestamp = time() * 1000;
-
-    while ($fetchTimestamp != $lastTimestamp) {
-        $fetchTimestamp = $lastTimestamp;
-
-        $oauth->fetch("{$api_url}/location?max-results=1000&max-time={$fetchTimestamp}&granularity=best");
-        $json = json_decode($oauth->getLastResponse());
-
-        $lastTimestamp = $lastLat = $lastLong = null;
-
-        foreach ($json->data->items as $location) {
-
-            if ($lastTimestamp && $lastLat != $location->latitude && $lastLong != $location->longitude) {
-
-                $scrobbles = $fetcher->fetchScrobbles(
-                    $_GET['user'],
-                    $location->timestampMs,
-                    $lastTimestamp, 
-                    $location->latitude,
-                    $location->longitude
-                );
-
-                if ($scrobbles) {
-                    $address = $fetcher->fetchAddress("{$location->latitude},{$location->longitude}");
-
-                    print date('r',$location->timestampMs/1000)." to ".date('r',$lastTimestamp/1000).": <b>{$address}\n</b><br>";
-
-                    print "<ul>";
-                    foreach ($scrobbles as $scrobble) {
-                        print "<li>{$scrobble['artist']} - {$scrobble['track']}</li>\n";
-                    }
-                    print "</ul><br>";
-
-                    flush();ob_flush();
+                print "<ul>";
+                foreach ($scrobbles as $scrobble) {
+                    print "<li>{$scrobble['artist']} - {$scrobble['track']}</li>\n";
+                    $foundScrobbles = 1;
                 }
-            }
+                print "</ul><br>";
 
-            // Collapse times in the same place
-            if (!$lastTimestamp || ($lastLat != $location->latitude && $lastLong != $location->longitude)) {
-                $lastLat = $location->latitude;
-                $lastLong = $location->longitude;
-                $lastTimestamp = $location->timestampMs;
+                flush();ob_flush();
             }
+        }
+
+        // Collapse times in the same place
+        if (!$lastTimestamp || ($lastLat != $location->latitude && $lastLong != $location->longitude)) {
+            $lastLat = $location->latitude;
+            $lastLong = $location->longitude;
+            $lastTimestamp = $location->timestampMs;
         }
     }
 
-
-} catch(OAuthException $e) {
-    trigger_error("OAuth fail: " . print_r($e, true));
-    print "Oh dear, something failed during the OAuth handshake with google!";
+    if (!$foundScrobbles) {
+        print "No scrobbles were found during the time periods registered on Latitude. Listen to more music already.";
+        exit;
+    }
 }
+
+
