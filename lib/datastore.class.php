@@ -8,6 +8,11 @@
             if (!$this->db || $reinitialise) {
                 $this->db = new PDO("sqlite:{$this->dbFile}");
             }
+
+            if (!$reinitialise && !$this->db->prepare("SELECT 1 FROM locations;")) {
+                $this->createDb();
+            }
+
             return $this->db;
         }
 
@@ -114,9 +119,14 @@
         function getAllScrobbles($user) {
             $db = $this->db();
 
-            $oScrobbleFetch = $db->prepare(
-                'select timestamp, artist, track, latitude, longitude from locations, scrobbles where hasScrobbles = 1 and timestamp * 1000 >= startTimestamp and timestamp * 1000 <= endTimestamp and locations.user = ? and scrobbles.user = ? order by timestamp desc;'
-            );
+            $oScrobbleFetch = $db->prepare('
+                SELECT timestamp, artist, track, latitude, longitude
+                FROM locations, scrobbles
+                WHERE hasScrobbles = 1 AND timestamp * 1000 >= startTimestamp 
+                    AND timestamp * 1000 <= endTimestamp AND locations.user = ? 
+                    AND scrobbles.user = ?
+                ORDER BY timestamp DESC;
+            ');
 
             $oScrobbleFetch->execute(
                 array($user, $user)

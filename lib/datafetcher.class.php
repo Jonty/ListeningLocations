@@ -3,15 +3,10 @@
     require_once('datastore.class.php');
 
     class DataFetcher {
-
         private $datastore;
 
         function __construct() {
             $this->store = new Datastore();
-        }
-
-        function initDatastore() {
-            $this->store->createDb();
         }
 
         function fetchScrobbles($user, $startTimestamp, $endTimestamp, $latitude, $longitude) {

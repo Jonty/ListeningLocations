@@ -1,7 +1,7 @@
 <?php
 
-    require_once('datastore.class.php');
-    require_once('datafetcher.class.php');
+    require_once('lib/datastore.class.php');
+    require_once('lib/datafetcher.class.php');
 
     $store = new DataStore();
     $fetcher = new DataFetcher();
