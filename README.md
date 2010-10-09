@@ -1,5 +1,5 @@
 ListeningLocations
-=========
+==================
 
 A hack for Barcelona Music Hack Day.
 
@@ -15,6 +15,18 @@ as charts for each of the places over time.
 It was designed to answer a simple question:
 
     How different is your music listening at home compared to work?
+
+Screenshots
+-----------
+Because most people will not be able to use this, here are some screenshots to
+show you what it looks like. It's not pretty but then neither am I, and children
+tend to look like their parents.
+
+The timeline view:
+http://jonty.co.uk/bits/listeninglocations_timeline.png
+
+The location chart view:
+http://jonty.co.uk/bits/listeninglocations_chart.png
 
 Notes
 -----
