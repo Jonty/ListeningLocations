@@ -18,15 +18,13 @@ It was designed to answer a simple question:
 
 Screenshots
 -----------
-Because most people will not be able to use this, here are some screenshots to
-show you what it looks like. It's not pretty but then neither am I, and children
-tend to look like their parents.
+It's not pretty but then neither am I, and children tend to look like their parents.
 
 The timeline view:
-http://jonty.co.uk/bits/listeninglocations_timeline.png
+<http://jonty.co.uk/bits/listeninglocations_timeline.png>
 
 The location chart view:
-http://jonty.co.uk/bits/listeninglocations_chart.png
+<http://jonty.co.uk/bits/listeninglocations_chart.png>
 
 Notes
 -----
