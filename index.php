@@ -34,7 +34,7 @@ if (!isset($_GET['user'])) {
 $fetcher = new DataFetcher();
 $oauth = new OAuthFetcher(); // This will do the OAuth bounce handshake dance.
 
-$fetchTimestamp = null;
+$fetchTimestamp = $foundScrobbles = null;
 $lastTimestamp = time() * 1000;
 
 while ($fetchTimestamp != $lastTimestamp) {
@@ -61,7 +61,7 @@ while ($fetchTimestamp != $lastTimestamp) {
         exit;
     }
 
-    $lastTimestamp = $lastLat = $lastLong = $foundScrobbles = null;
+    $lastTimestamp = $lastLat = $lastLong = null;
     $json = json_decode($oauth->getLastResponse());
 
     if (!$json->data->items) {
