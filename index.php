@@ -105,10 +105,8 @@ while ($fetchTimestamp != $lastTimestamp) {
         }
     }
 
-    if (!$foundScrobbles) {
-        print "No scrobbles were found during the time periods registered on Latitude. Listen to more music already.";
-        exit;
-    }
 }
 
-
+if (!$foundScrobbles) {
+    print "No scrobbles were found during the time periods registered on Latitude. Listen to more music already.";
+}
